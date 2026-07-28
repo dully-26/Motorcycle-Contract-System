@@ -39,3 +39,19 @@ Route::get('/run-migrate', function () {
         'output' => Artisan::output()
     ]);
 });
+
+
+// TEMPORARY: Create admin user
+// Remove this route after seeding is completed
+Route::get('/run-seeder', function () {
+
+    Artisan::call('db:seed', [
+        '--class' => 'AdminSeeder',
+        '--force' => true
+    ]);
+
+    return response()->json([
+        'status' => 'seeder completed',
+        'output' => Artisan::output()
+    ]);
+});
