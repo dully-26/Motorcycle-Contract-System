@@ -34,9 +34,7 @@ RUN printf '<Directory /var/www/html/public>\n\
 # Permissions
 RUN chown -R www-data:www-data storage bootstrap/cache
 
-# Laravel cache optimization
-RUN php artisan config:clear \
-    && php artisan cache:clear
+
 
 EXPOSE 80
 
