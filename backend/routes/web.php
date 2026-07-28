@@ -1,17 +1,14 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Artisan;
 
 /*
 |--------------------------------------------------------------------------
 | Web Routes
 |--------------------------------------------------------------------------
 | This project is a decoupled SPA (React) + API (Laravel) architecture.
-| Almost everything lives in routes/api.php. This file only needs to:
-| 1. Serve a health-check root
-| 2. Handle Sanctum's CSRF cookie route (auto-registered by Sanctum)
-| 3. Provide a fallback redirect for the Flutterwave hosted payment page
-|    (only needed if you use Flutterwave's redirect flow instead of inline)
+| Almost everything lives in routes/api.php.
 */
 
 Route::get('/', function () {
@@ -22,7 +19,23 @@ Route::get('/', function () {
     ]);
 });
 
-// Optional: Flutterwave redirect-based callback (only if NOT using inline checkout)
+
+// Optional: Flutterwave redirect-based callback
 Route::get('/payment/callback', function () {
     return redirect(config('app.frontend_url') . '/payments?status=' . request('status'));
+});
+
+
+// TEMPORARY: Run database migrations on Railway database
+// Remove this route after migration is completed
+Route::get('/run-migrate', function () {
+
+    Artisan::call('migrate', [
+        '--force' => true
+    ]);
+
+    return response()->json([
+        'status' => 'migration completed',
+        'output' => Artisan::output()
+    ]);
 });
