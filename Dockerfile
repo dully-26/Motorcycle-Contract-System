@@ -11,14 +11,17 @@ RUN apt-get update && apt-get install -y \
 
 RUN a2enmod rewrite
 
+# Copy Laravel backend
 COPY backend/ .
 
+# Install Composer
 RUN curl -sS https://getcomposer.org/installer | php \
     && mv composer.phar /usr/local/bin/composer
 
+# Install Laravel dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-# Change Apache root to Laravel public folder
+# Set Apache document root to Laravel public folder
 RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot /var/www/html/public|' /etc/apache2/sites-available/000-default.conf
 
 # Allow Laravel .htaccess
@@ -28,8 +31,14 @@ RUN printf '<Directory /var/www/html/public>\n\
 </Directory>\n' > /etc/apache2/conf-available/laravel.conf \
     && a2enconf laravel
 
+# Permissions
 RUN chown -R www-data:www-data storage bootstrap/cache
+
+# Laravel cache optimization
+RUN php artisan config:clear \
+    && php artisan cache:clear
 
 EXPOSE 80
 
-CMD ["apache2-foreground"]
+# Run database migrations then start Apache
+CMD php artisan migrate --force && apache2-foreground
