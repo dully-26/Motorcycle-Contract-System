@@ -7,7 +7,6 @@ use App\Models\Motorcycle;
 use App\Services\NotificationService;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 class ContractRequestController extends Controller
 {
@@ -31,55 +30,42 @@ class ContractRequestController extends Controller
     }
 
     public function store(Request $request)
-{
-    $validator = Validator::make($request->all(), [
-        'motorcycle_id' => 'required|exists:motorcycles,id',
-        'notes' => 'nullable|string|max:500',
-        'applicant_photo' => 'nullable|file|image|max:5120',
-    ]);
+    {
+        $request->validate([
+            'motorcycle_id' => 'required|exists:motorcycles,id',
+            'notes' => 'nullable|string|max:500',
+        ]);
 
-    if ($validator->fails()) {
-        return response()->json(['errors' => $validator->errors()], 422);
+        $motorcycle = Motorcycle::findOrFail($request->motorcycle_id);
+
+        if ($motorcycle->listing_type !== 'contract') {
+            return response()->json(['message' => 'This motorcycle is not available for contract'], 422);
+        }
+        if ($motorcycle->status !== 'available') {
+            return response()->json(['message' => 'Motorcycle is not available'], 422);
+        }
+
+        $existing = ContractRequest::where('user_id', $request->user()->id)
+            ->where('motorcycle_id', $motorcycle->id)
+            ->where('status', 'pending')
+            ->first();
+
+        if ($existing) {
+            return response()->json(['message' => 'You already have a pending request for this motorcycle'], 422);
+        }
+
+        $reqModel = ContractRequest::create([
+            'user_id' => $request->user()->id,
+            'motorcycle_id' => $request->motorcycle_id,
+            'notes' => $request->notes,
+            'status' => 'pending',
+        ]);
+
+        AuditLogger::log($request->user()->id, 'submitted_contract_request', 'ContractRequest', $reqModel->id,
+            "Requested {$motorcycle->brand} {$motorcycle->model}");
+
+        return response()->json($reqModel->load('motorcycle'), 201);
     }
-
-    $motorcycle = Motorcycle::findOrFail($request->motorcycle_id);
-
-    if ($motorcycle->listing_type !== 'contract') {
-        return response()->json(['message' => 'This motorcycle is not available for contract'], 422);
-    }
-    if ($motorcycle->status !== 'available') {
-        return response()->json(['message' => 'Motorcycle is not available'], 422);
-    }
-
-    $existing = ContractRequest::where('user_id', $request->user()->id)
-        ->where('motorcycle_id', $motorcycle->id)
-        ->where('status', 'pending')
-        ->first();
-
-    if ($existing) {
-        return response()->json(['message' => 'You already have a pending request for this motorcycle'], 422);
-    }
-
-    // Use uploaded photo if provided, otherwise fall back to the user's profile photo
-    $photoPath = null;
-    if ($request->hasFile('applicant_photo')) {
-        $photoPath = $request->file('applicant_photo')->store('applicant_photos', 'public');
-    } elseif ($request->user()->profile_photo) {
-        $photoPath = $request->user()->profile_photo;
-    } else {
-        return response()->json(['message' => 'Tafadhali pakia picha yako (au weka picha ya profaili kwanza) kabla ya kuwasilisha ombi'], 422);
-    }
-
-    $reqModel = ContractRequest::create([
-        'user_id' => $request->user()->id,
-        'motorcycle_id' => $request->motorcycle_id,
-        'notes' => $request->notes,
-        'applicant_photo' => $photoPath,
-        'status' => 'pending',
-    ]);
-
-    return response()->json($reqModel->load('motorcycle'), 201);
-}
 
     public function updateStatus(Request $request, $id)
     {
