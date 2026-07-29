@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/axios';
+import { storageUrl } from '../../utils/storage';
 import { Plus, Pencil, Trash2, X } from 'lucide-react';
+import { validateMotorcycleForm } from '../../utils/validation';
 
 const emptyForm = {
   brand: '', model: '', year: '', daily_price: '', monthly_price: '',
-  total_contract_price: '', condition: 'used', listing_type: 'contract',
+  total_contract_price: '', sale_price: '', condition: 'used', listing_type: 'contract',
 };
 
 export default function MotorcycleManagement() {
@@ -17,6 +19,7 @@ export default function MotorcycleManagement() {
   const [photos, setPhotos] = useState([]);
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const fetchMotorcycles = async () => {
     setLoading(true);
@@ -43,8 +46,9 @@ export default function MotorcycleManagement() {
   const openEditModal = (m) => {
     setForm({
       brand: m.brand, model: m.model, year: m.year,
-      daily_price: m.daily_price, monthly_price: m.monthly_price,
-      total_contract_price: m.total_contract_price,
+      daily_price: m.daily_price || '', monthly_price: m.monthly_price || '',
+      total_contract_price: m.total_contract_price || '',
+      sale_price: m.sale_price || '',
       condition: m.condition, listing_type: m.listing_type,
     });
     setPhotos([]);
@@ -53,40 +57,55 @@ export default function MotorcycleManagement() {
     setShowModal(true);
   };
 
-  const validate = () => {
-    const errs = {};
-    if (!form.brand) errs.brand = 'Brand is required';
-    if (!form.model) errs.model = 'Model is required';
-    if (!form.year || form.year < 1980) errs.year = 'Enter a valid year';
-    if (form.listing_type === 'contract') {
-      if (!form.daily_price || form.daily_price <= 0) errs.daily_price = 'Enter a valid daily price';
-      if (!form.monthly_price || form.monthly_price <= 0) errs.monthly_price = 'Enter a valid monthly price';
-      if (!form.total_contract_price || form.total_contract_price <= 0) errs.total_contract_price = 'Enter total price';
-    }
-    return errs;
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const errs = validate();
+    const errs = validateMotorcycleForm(form);
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
+    setSubmitting(true);
     try {
       if (editingId) {
+        // Editing uses plain JSON (no files re-uploaded here)
         await api.put(`/motorcycles/${editingId}`, form);
         setMessage('Motorcycle updated successfully');
       } else {
         const data = new FormData();
-        Object.entries(form).forEach(([k, v]) => data.append(k, v));
+
+        data.append('brand', form.brand);
+        data.append('model', form.model);
+        data.append('year', form.year);
+        data.append('condition', form.condition);
+        data.append('listing_type', form.listing_type);
+
+        if (form.listing_type === 'contract') {
+          data.append('daily_price', form.daily_price);
+          data.append('monthly_price', form.monthly_price);
+          data.append('total_contract_price', form.total_contract_price);
+        } else {
+          data.append('sale_price', form.sale_price);
+        }
+
         photos.forEach((p) => data.append('photos[]', p));
-        await api.post('/motorcycles', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+
+        // IMPORTANT: do NOT manually set Content-Type — axios/browser sets
+        // the correct multipart boundary automatically for FormData.
+        await api.post('/motorcycles', data);
         setMessage('Motorcycle added successfully');
       }
       setShowModal(false);
       fetchMotorcycles();
     } catch (err) {
-      setErrors({ general: err.response?.data?.message || 'Operation failed' });
+      const apiErrors = err.response?.data?.errors;
+      if (apiErrors) {
+        const flat = {};
+        Object.keys(apiErrors).forEach((k) => { flat[k] = apiErrors[k][0]; });
+        setErrors(flat);
+      } else {
+        setErrors({ general: err.response?.data?.message || 'Operation failed. Please try again.' });
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -132,7 +151,7 @@ export default function MotorcycleManagement() {
             <div className="motorcycle-card" key={m.id}>
               <div className="card-image">
                 {m.photos?.[0] ? (
-                  <img src={`http://localhost:8000/storage/${m.photos[0]}`} alt={m.model} />
+                  <img src={storageUrl(m.photos[0])} alt={m.model} />
                 ) : (
                   <div className="no-image">🏍️ No Image</div>
                 )}
@@ -211,7 +230,7 @@ export default function MotorcycleManagement() {
                 <option value="sale">For Sale</option>
               </select>
 
-              {form.listing_type === 'contract' && (
+              {form.listing_type === 'contract' ? (
                 <>
                   <input type="number" placeholder="Daily Price (TZS)" value={form.daily_price} onChange={(e) => setForm({ ...form, daily_price: e.target.value })} />
                   {errors.daily_price && <span className="field-error">{errors.daily_price}</span>}
@@ -222,14 +241,26 @@ export default function MotorcycleManagement() {
                   <input type="number" placeholder="Total Contract Price (TZS)" value={form.total_contract_price} onChange={(e) => setForm({ ...form, total_contract_price: e.target.value })} />
                   {errors.total_contract_price && <span className="field-error">{errors.total_contract_price}</span>}
                 </>
+              ) : (
+                <>
+                  <input type="number" placeholder="Selling Price (TZS)" value={form.sale_price} onChange={(e) => setForm({ ...form, sale_price: e.target.value })} />
+                  {errors.sale_price && <span className="field-error">{errors.sale_price}</span>}
+                </>
               )}
 
               {!editingId && (
-                <input type="file" multiple accept="image/*" onChange={(e) => setPhotos([...e.target.files])} />
+                <>
+                  <input type="file" multiple accept="image/*" onChange={(e) => setPhotos([...e.target.files])} />
+                  {photos.length > 0 && (
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: -4, marginBottom: 8 }}>
+                      {photos.length} photo(s) selected
+                    </p>
+                  )}
+                </>
               )}
 
-              <button type="submit" className="btn-primary" style={{ marginTop: 16 }}>
-                {editingId ? 'Save Changes' : 'Add Motorcycle'}
+              <button type="submit" className="btn-primary" disabled={submitting} style={{ marginTop: 16 }}>
+                {submitting ? 'Saving...' : editingId ? 'Save Changes' : 'Add Motorcycle'}
               </button>
             </form>
           </div>

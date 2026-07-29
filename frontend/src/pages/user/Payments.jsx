@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { FileText, Bike } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { FileText, Bike, Eye } from 'lucide-react';
 import api from '../../api/axios';
-import { downloadPdf } from '../../utils/downloadPdf';
 
 export default function Payments() {
   const [contracts, setContracts] = useState([]);
@@ -133,6 +133,10 @@ export default function Payments() {
               </div>
 
               <div className="card-body">
+                {!c.accepted_at && c.status === 'active' && (
+                  <div className="not-accepted-tag">Bado hujakubali masharti ya mkataba huu</div>
+                )}
+
                 <div className="contract-progress-row">
                   <span>Paid: TZS {Number(c.paid_amount).toLocaleString()}</span>
                   <span>{progressPercent(c)}%</span>
@@ -152,7 +156,7 @@ export default function Payments() {
                   </div>
                 </div>
 
-                {c.status === 'active' && (
+                {c.status === 'active' && c.accepted_at && (
                   <>
                     {openPayId === c.id ? (
                       <div className="pay-box">
@@ -184,13 +188,13 @@ export default function Payments() {
                   </>
                 )}
 
-                <button
+                <Link
+                  to={`/contracts/${c.id}`}
                   className="btn-outline-primary"
-                  style={{ width: '100%', marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                  onClick={() => downloadPdf(`/contracts/${c.id}/pdf`, `contract-${c.id}.pdf`)}
+                  style={{ width: '100%', marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, textDecoration: 'none' }}
                 >
-                  <FileText size={14} /> Download Contract PDF
-                </button>
+                  <Eye size={14} /> {c.accepted_at ? 'Soma / Pakua Mkataba' : 'Soma Mkataba Kabla ya Kukubali'}
+                </Link>
               </div>
             </div>
           ))}

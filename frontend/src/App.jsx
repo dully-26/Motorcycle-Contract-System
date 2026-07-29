@@ -15,6 +15,8 @@ import Marketplace from './pages/user/Marketplace';
 import SellMotorcycle from './pages/user/SellMotorcycle';
 import MyRequests from './pages/user/MyRequests';
 import Payments from './pages/user/Payments';
+import ViewContract from './pages/user/ViewContract';
+import Profile from './pages/user/Profile';
 
 import ManagerDashboard from './pages/manager/ManagerDashboard';
 import MotorcycleManagement from './pages/manager/MotorcycleManagement';
@@ -24,6 +26,11 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import UserManagement from './pages/admin/UserManagement';
 import AddManager from './pages/admin/AddManager';
 import AuditLogs from './pages/admin/AuditLogs';
+
+import RecordPayment from './pages/manager/RecordPayment';
+import PaymentRecords from './pages/manager/PaymentRecords';
+import ContractsList from './pages/manager/ContractsList';
+
 
 import './index.css';
 
@@ -58,6 +65,12 @@ export default function App() {
           <Route path="/admin/users" element={withLayout(<UserManagement />, ['admin'])} />
           <Route path="/admin/add-manager" element={withLayout(<AddManager />, ['admin'])} />
           <Route path="/admin/audit-logs" element={withLayout(<AuditLogs />, ['admin'])} />
+
+          <Route path="/manager/record-payment" element={withLayout(<RecordPayment />, ['manager', 'admin'])} />
+<Route path="/manager/payment-records" element={withLayout(<PaymentRecords />, ['manager', 'admin'])} />
+<Route path="/manager/contracts" element={withLayout(<ContractsList />, ['manager', 'admin'])} />
+<Route path="/contracts/:id" element={withLayout(<ViewContract />, ['user', 'manager', 'admin'])} />
+<Route path="/profile" element={withLayout(<Profile />, ['user'])} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

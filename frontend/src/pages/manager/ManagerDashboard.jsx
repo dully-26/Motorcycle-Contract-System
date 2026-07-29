@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/axios';
+import { storageUrl } from '../../utils/storage';
 import ContractForm from '../user/ContractForm';
-import { X, FileText } from 'lucide-react';
+import { X, FileText, Eye, Mail, Phone, MapPin, User, ImageIcon } from 'lucide-react';
 
 export default function ManagerDashboard() {
   const [activeTab, setActiveTab] = useState('pending'); // pending | approved | rejected
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [modalRequest, setModalRequest] = useState(null); // request selected for contract generation
+  const [modalRequest, setModalRequest] = useState(null); // for contract generation
+  const [detailsRequest, setDetailsRequest] = useState(null); // for customer details view
   const [message, setMessage] = useState('');
 
   const fetchRequests = async () => {
@@ -36,13 +38,12 @@ export default function ManagerDashboard() {
     }
   };
 
-  const openContractModal = (request) => {
-    setModalRequest(request);
-  };
+  const openContractModal = (request) => setModalRequest(request);
+  const openDetailsModal = (request) => setDetailsRequest(request);
 
   const handleContractGenerated = () => {
     setModalRequest(null);
-    setMessage('Contract generated successfully! The customer can now view and pay for it.');
+    setMessage('Contract generated successfully! The customer can now view and accept it.');
     fetchRequests();
   };
 
@@ -87,7 +88,11 @@ export default function ManagerDashboard() {
             <tbody>
               {requests.map((r) => (
                 <tr key={r.id}>
-                  <td>{r.user.full_name}</td>
+                  <td>
+                    <button className="customer-name-link" onClick={() => openDetailsModal(r)}>
+                      <Eye size={13} /> {r.user.full_name}
+                    </button>
+                  </td>
                   <td>{r.motorcycle.brand} {r.motorcycle.model}</td>
                   <td>{new Date(r.created_at).toLocaleDateString()}</td>
                   <td><span className={`status-badge status-${r.status}`}>{r.status}</span></td>
@@ -120,6 +125,7 @@ export default function ManagerDashboard() {
         </div>
       )}
 
+      {/* CONTRACT GENERATION MODAL */}
       {modalRequest && (
         <div className="modal-overlay" onClick={() => setModalRequest(null)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
@@ -133,6 +139,82 @@ export default function ManagerDashboard() {
               motorcyclePrice={modalRequest.motorcycle.total_contract_price}
               onSuccess={handleContractGenerated}
             />
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOMER REGISTRATION DETAILS MODAL */}
+      {detailsRequest && (
+        <div className="modal-overlay" onClick={() => setDetailsRequest(null)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
+            <button className="modal-close" onClick={() => setDetailsRequest(null)}><X size={18} /></button>
+
+            <div className="customer-details-header">
+              {detailsRequest.applicant_photo ? (
+                <img
+                  src={storageUrl(detailsRequest.applicant_photo)}
+                  alt={detailsRequest.user.full_name}
+                  className="customer-avatar-photo"
+                />
+              ) : (
+                <div className="customer-avatar-lg">
+                  {detailsRequest.user.full_name?.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
+                </div>
+              )}
+              <div>
+                <h2 style={{ marginBottom: 2 }}>{detailsRequest.user.full_name}</h2>
+                <p style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Registered customer</p>
+              </div>
+            </div>
+
+            {!detailsRequest.applicant_photo && (
+              <div className="no-photo-warning">
+                <ImageIcon size={14} /> Hakuna picha iliyowasilishwa na mwombaji
+              </div>
+            )}
+
+            <div className="customer-details-list">
+              <div className="customer-detail-item">
+                <Mail size={16} />
+                <div>
+                  <span className="detail-label">Email</span>
+                  <span className="detail-value">{detailsRequest.user.email}</span>
+                </div>
+              </div>
+
+              <div className="customer-detail-item">
+                <Phone size={16} />
+                <div>
+                  <span className="detail-label">Phone</span>
+                  <span className="detail-value">{detailsRequest.user.phone || 'Not provided'}</span>
+                </div>
+              </div>
+
+              <div className="customer-detail-item">
+                <MapPin size={16} />
+                <div>
+                  <span className="detail-label">Address</span>
+                  <span className="detail-value">{detailsRequest.user.address || 'Not provided'}</span>
+                </div>
+              </div>
+
+              <div className="customer-detail-item">
+                <User size={16} />
+                <div>
+                  <span className="detail-label">Requesting</span>
+                  <span className="detail-value">
+                    {detailsRequest.motorcycle.brand} {detailsRequest.motorcycle.model} ({detailsRequest.motorcycle.year})
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {detailsRequest.notes && (
+              <div className="customer-notes-box">
+                <span className="detail-label">Notes from customer</span>
+                <p>{detailsRequest.notes}</p>
+              </div>
+            )}
           </div>
         </div>
       )}

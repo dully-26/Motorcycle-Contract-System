@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import api from '../../api/axios';
 import LocationPicker from '../../components/LocationPicker';
+import { validateSellForm } from '../../utils/validation';
 
 export default function SellMotorcycle() {
   const [form, setForm] = useState({
@@ -10,19 +11,11 @@ export default function SellMotorcycle() {
   const [photos, setPhotos] = useState([]);
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState({});
-
-  const validate = () => {
-    const errs = {};
-    if (!form.brand) errs.brand = 'Brand is required';
-    if (!form.model) errs.model = 'Model is required';
-    if (!form.year || form.year < 1980) errs.year = 'Enter a valid year';
-    if (!form.sale_price || form.sale_price <= 0) errs.sale_price = 'Enter a valid price';
-    return errs;
-  };
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const errs = validate();
+    const errs = validateSellForm(form);
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
@@ -30,13 +23,26 @@ export default function SellMotorcycle() {
     Object.entries(form).forEach(([k, v]) => data.append(k, v));
     photos.forEach((p) => data.append('photos[]', p));
 
+    setSubmitting(true);
     try {
-      await api.post('/motorcycles/sell', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      // IMPORTANT: do NOT manually set Content-Type here — axios sets the
+      // correct multipart boundary automatically when passing a FormData object.
+      await api.post('/motorcycles/sell', data);
       setMessage('Motorcycle listed for sale successfully!');
       setForm({ brand: '', model: '', year: '', sale_price: '', condition: 'used', description: '', latitude: '', longitude: '', location_name: '' });
       setPhotos([]);
+      setErrors({});
     } catch (err) {
-      setMessage(err.response?.data?.message || 'Listing failed');
+      const apiErrors = err.response?.data?.errors;
+      if (apiErrors) {
+        const flat = {};
+        Object.keys(apiErrors).forEach((k) => { flat[k] = apiErrors[k][0]; });
+        setErrors(flat);
+      } else {
+        setMessage(err.response?.data?.message || 'Listing failed');
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -44,7 +50,7 @@ export default function SellMotorcycle() {
     <div className="page">
       <h1>Sell Your Motorcycle</h1>
       {message && <div className="alert-success">{message}</div>}
-      <form className="contract-form contract-form-wide" onSubmit={handleSubmit} encType="multipart/form-data">
+      <form className="contract-form contract-form-wide" onSubmit={handleSubmit}>
         <input placeholder="Brand" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} />
         {errors.brand && <span className="field-error">{errors.brand}</span>}
 
@@ -65,6 +71,11 @@ export default function SellMotorcycle() {
         <textarea placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
 
         <input type="file" multiple accept="image/*" onChange={(e) => setPhotos([...e.target.files])} />
+        {photos.length > 0 && (
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: -4, marginBottom: 8 }}>
+            {photos.length} photo(s) selected
+          </p>
+        )}
 
         <input
           placeholder="Location name (e.g. Dox, Dodoma)"
@@ -79,7 +90,9 @@ export default function SellMotorcycle() {
           onChange={(lat, lng) => setForm({ ...form, latitude: lat, longitude: lng })}
         />
 
-        <button type="submit" className="btn-primary">List Motorcycle</button>
+        <button type="submit" className="btn-primary" disabled={submitting}>
+          {submitting ? 'Listing...' : 'List Motorcycle'}
+        </button>
       </form>
     </div>
   );

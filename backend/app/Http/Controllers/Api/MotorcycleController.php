@@ -37,22 +37,33 @@ class MotorcycleController extends Controller
         return response()->json(Motorcycle::with('owner')->findOrFail($id));
     }
 
-    // Manager: add motorcycle for contract
+    /**
+     * Manager/Admin: add a motorcycle either for contract or for sale.
+     * Validation rules are branched explicitly by listing_type to avoid
+     * ambiguous required_if + nullable conflicts that caused 422 errors.
+     */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        $baseRules = [
             'brand' => 'required|string|max:255',
             'model' => 'required|string|max:255',
             'year' => 'required|integer|min:1980|max:' . (date('Y') + 1),
-            'daily_price' => 'required|numeric|min:0',
-            'monthly_price' => 'required|numeric|min:0',
-            'total_contract_price' => 'required|numeric|min:0',
             'condition' => 'required|in:new,used',
-            'listing_type' => 'nullable|in:contract,sale',
+            'listing_type' => 'required|in:contract,sale',
             'description' => 'nullable|string',
             'photos' => 'nullable|array',
             'photos.*' => 'file|image|max:5120', // 5MB per photo
-        ]);
+        ];
+
+        if ($request->input('listing_type') === 'contract') {
+            $baseRules['daily_price'] = 'required|numeric|min:0';
+            $baseRules['monthly_price'] = 'required|numeric|min:0';
+            $baseRules['total_contract_price'] = 'required|numeric|min:0';
+        } elseif ($request->input('listing_type') === 'sale') {
+            $baseRules['sale_price'] = 'required|numeric|min:0';
+        }
+
+        $validator = Validator::make($request->all(), $baseRules);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
@@ -67,15 +78,22 @@ class MotorcycleController extends Controller
             }
         }
 
-        $motorcycle = Motorcycle::create(array_merge(
-            collect($validated)->except('photos')->toArray(),
-            [
-                'photos' => $photos,
-                'listing_type' => $validated['listing_type'] ?? 'contract',
-                'status' => 'available',
-                'added_by' => $request->user()->id,
-            ]
-        ));
+        $motorcycle = Motorcycle::create([
+            'brand' => $validated['brand'],
+            'model' => $validated['model'],
+            'year' => $validated['year'],
+            'condition' => $validated['condition'],
+            'listing_type' => $validated['listing_type'],
+            'daily_price' => $validated['daily_price'] ?? 0,
+            'monthly_price' => $validated['monthly_price'] ?? 0,
+            'total_contract_price' => $validated['total_contract_price'] ?? 0,
+            'sale_price' => $validated['sale_price'] ?? null,
+            'description' => $validated['description'] ?? null,
+            'photos' => $photos,
+            'status' => 'available',
+            'added_by' => $request->user()->id,
+            'owner_id' => $request->user()->id,
+        ]);
 
         return response()->json($motorcycle, 201);
     }
